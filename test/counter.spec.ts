@@ -420,7 +420,6 @@ describe(`Validate, cancel, and increment counter flows (Seaport v${VERSION})`, 
       )
         .to.emit(marketplaceContract, "OrderCancelled")
         .withArgs(orderHash, seller.address, zone.address);
-
       // cannot fill the order anymore
       await expect(
         marketplaceContract.connect(buyer).fulfillOrder(order, toKey(0), {

@@ -110,13 +110,12 @@ export const marketplaceFixture = async (
     );
 
     const orderHash = await getAndVerifyOrderHash(orderComponents);
-
+    
     const { domainSeparator } = await marketplaceContract.information();
     const digest = keccak256(
       `0x1901${domainSeparator.slice(2)}${orderHash.slice(2)}`
     );
     const recoveredAddress = recoverAddress(digest, signature);
-
     expect(recoveredAddress).to.equal(signer.address);
 
     return signature;
@@ -136,7 +135,6 @@ export const marketplaceFixture = async (
     extraCheap = false
   ) => {
     const counter = await marketplaceContract.getCounter(offerer.address);
-
     const salt = !extraCheap ? randomHex() : constants.HashZero;
     const startTime =
       timeFlag !== "NOT_STARTED" ? 0 : toBN("0xee00000000000000000000000000");
