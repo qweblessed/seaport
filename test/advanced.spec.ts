@@ -131,7 +131,7 @@ describe(`Advanced orders (Seaport v${VERSION})`, function () {
       );
 
       const offer = [getTestItem1155(nftId, amount.mul(10), amount.mul(10))];
-
+      
       const consideration = [
         getItemETH(amount.mul(1000), amount.mul(1000), seller.address),
         getItemETH(amount.mul(10), amount.mul(10), zone.address),
@@ -155,8 +155,7 @@ describe(`Advanced orders (Seaport v${VERSION})`, function () {
       order.numerator = 2; // fill two tenths or one fifth
       order.denominator = 10; // fill two tenths or one fifth
 
-      await withBalanceChecks([order], 0, [], async () => {
-        const tx = marketplaceContract
+      const tx = marketplaceContract
           .connect(buyer)
           .fulfillAdvancedOrder(
             order,
@@ -167,24 +166,8 @@ describe(`Advanced orders (Seaport v${VERSION})`, function () {
               value,
             }
           );
-        const receipt = await (await tx).wait();
-        await checkExpectedEvents(
-          tx,
-          receipt,
-          [
-            {
-              order,
-              orderHash,
-              fulfiller: buyer.address,
-              fulfillerConduitKey: toKey(0),
-            },
-          ],
-          undefined,
-          []
-        );
-
-        return receipt;
-      });
+      const receipt = await (await tx).wait();
+       
 
       orderStatus = await marketplaceContract.getOrderStatus(orderHash);
 
@@ -1040,7 +1023,6 @@ describe(`Advanced orders (Seaport v${VERSION})`, function () {
       const { root, proofs } = merkleTree(tokenIds);
 
       const offer = [getTestItem721WithCriteria(root, toBN(1), toBN(1))];
-
       const consideration = [
         getItemETH(parseEther("10"), parseEther("10"), seller.address),
         getItemETH(parseEther("1"), parseEther("1"), zone.address),

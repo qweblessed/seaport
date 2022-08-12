@@ -169,7 +169,7 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
           getItemETH(parseEther("1"), parseEther("1"), zone.address),
           getItemETH(parseEther("1"), parseEther("1"), owner.address),
         ];
-
+        console.log
         const { order, orderHash, value } = await createOrder(
           seller,
           zone,
@@ -1377,7 +1377,6 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
           getTestItem20(50, 50, zone.address),
           getTestItem20(50, 50, owner.address),
         ];
-
         const { order, orderHash } = await createOrder(
           seller,
           zone,

@@ -727,6 +727,7 @@ describe(`Zone - PausableZone (Seaport v${VERSION})`, function () {
       marketplaceContract.address,
       [orderComponents]
     );
+    
   });
 
   it("Operator of zone can cancel restricted orders", async () => {
