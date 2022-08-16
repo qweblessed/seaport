@@ -52,6 +52,9 @@ export const fixtureERC20 = async (signer: JsonRpcSigner | Wallet) => {
 
 export const fixtureERC721 = async (signer: JsonRpcSigner | Wallet) => {
   const testERC721: TestERC721 = await deployContract("TestERC721", signer);
+  const testERC721UnallowedAddress: TestERC721 = await deployContract("TestERC721", signer);
+  console.log('1:',testERC721.address)
+  console.log('2:',testERC721UnallowedAddress.address)
 
   const set721ApprovalForAll = (
     signer: Wallet,
@@ -63,10 +66,25 @@ export const fixtureERC721 = async (signer: JsonRpcSigner | Wallet) => {
       .to.emit(contract, "ApprovalForAll")
       .withArgs(signer.address, spender, approved);
   };
+  const set721ApprovalForAllWithUnallowedAddress = (
+    signer: Wallet,
+    spender: string,
+    approved = true,
+    contract = testERC721UnallowedAddress
+  ) => {
+    return expect(contract.connect(signer).setApprovalForAll(spender, approved))
+      .to.emit(contract, "ApprovalForAll")
+      .withArgs(signer.address, spender, approved);
+  };
 
   const mint721 = async (signer: Wallet | Contract, id?: BigNumberish) => {
     const nftId = id ? toBN(id) : randomBN();
     await testERC721.mint(signer.address, nftId);
+    return nftId;
+  };
+  const mint721WithUnallowedAddress = async (signer: Wallet | Contract, id?: BigNumberish) => {
+    const nftId = id ? toBN(id) : randomBN();
+    await testERC721UnallowedAddress.mint(signer.address, nftId);
     return nftId;
   };
 
@@ -85,12 +103,37 @@ export const fixtureERC721 = async (signer: JsonRpcSigner | Wallet) => {
     return mint721(signer, id);
   };
 
+  const mintAndApprove721WithIncorrectNftAddress = async (
+    signer: Wallet,
+    spender: string,
+    id?: BigNumberish
+  ) => {
+    await set721ApprovalForAllWithUnallowedAddress(signer, spender, true);
+    return mint721WithUnallowedAddress(signer, id);
+  };
+
   const getTestItem721 = (
     identifierOrCriteria: BigNumberish,
     startAmount: BigNumberish = 1,
     endAmount: BigNumberish = 1,
     recipient?: string,
     token = testERC721.address
+  ) =>
+    getOfferOrConsiderationItem(
+      2,
+      token,
+      identifierOrCriteria,
+      startAmount,
+      endAmount,
+      recipient
+    );
+
+  const getTestItem721withUnallowedAddress = (
+    identifierOrCriteria: BigNumberish,
+    startAmount: BigNumberish = 1,
+    endAmount: BigNumberish = 1,
+    recipient?: string,
+    token = testERC721UnallowedAddress.address
   ) =>
     getOfferOrConsiderationItem(
       2,
@@ -122,8 +165,13 @@ export const fixtureERC721 = async (signer: JsonRpcSigner | Wallet) => {
     mint721,
     mint721s,
     mintAndApprove721,
+    mint721WithUnallowedAddress,
+    set721ApprovalForAllWithUnallowedAddress,
+    mintAndApprove721WithIncorrectNftAddress,
     getTestItem721,
     getTestItem721WithCriteria,
+    getTestItem721withUnallowedAddress,
+    
   };
 };
 

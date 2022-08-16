@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
 import { decodeEvents } from "./utils/events";
+import { MerkleTree } from 'merkletreejs';
 
 import { deployContract } from "./utils/contracts";
 import {
@@ -58,9 +59,11 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
   let getTestItem1155: SeaportFixtures["getTestItem1155"];
   let getTestItem20: SeaportFixtures["getTestItem20"];
   let getTestItem721: SeaportFixtures["getTestItem721"];
+  let getTestItem721withUnallowedAddress: SeaportFixtures["getTestItem721withUnallowedAddress"]
   let mint721: SeaportFixtures["mint721"];
   let mintAndApprove1155: SeaportFixtures["mintAndApprove1155"];
   let mintAndApprove721: SeaportFixtures["mintAndApprove721"];
+  let mintAndApprove721WithIncorrectNftAddress: SeaportFixtures["mintAndApprove721WithIncorrectNftAddress"]
   let mintAndApproveERC20: SeaportFixtures["mintAndApproveERC20"];
   let set721ApprovalForAll: SeaportFixtures["set721ApprovalForAll"];
   let withBalanceChecks: SeaportFixtures["withBalanceChecks"];
@@ -107,6 +110,8 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
       mint721,
       mintAndApprove1155,
       mintAndApprove721,
+      mintAndApprove721WithIncorrectNftAddress,
+      getTestItem721withUnallowedAddress,
       mintAndApproveERC20,
       set721ApprovalForAll,
       stubZone,
@@ -182,7 +187,9 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
               consideration,
               0 
             );
-    
+            
+
+
             const basicOrderParameters = getBasicOrderParameters(
               0, // EthForERC721
               order
@@ -423,11 +430,6 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
         const nft2 = getTestItem721(nftId2, 1, 1, seller.address)
 
         const offer = [nft1];
-        
-        console.log('owner of offered item before trade',await testERC721.ownerOf(nft1.identifierOrCriteria))
-        console.log('owner of consideration items before trade',await testERC721.ownerOf(nft2.identifierOrCriteria))
-        console.log('seller eth balance before trade',ethers.utils.formatEther(await seller.getBalance()))
-        console.log('swapVault bal: before',ethers.utils.formatEther(await swapVault.getBalance()))
 
         const consideration = [ 
           getItemETH(parseEther("0.01"), parseEther("0.01"), swapVault.address),
@@ -454,10 +456,6 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
             value:value.add(parseEther("1"))
         })
         await (await tx).wait();
-
-        console.log('owner of consideration items after',await testERC721.ownerOf(nft2.identifierOrCriteria))
-        console.log('owner of offered item owner after',await testERC721.ownerOf(nft1.identifierOrCriteria))
-        console.log('seller eth balance after trade',await ethers.utils.formatEther(await seller.getBalance()))
 
         });
       it("Can cancel an order", async () => {
@@ -544,5 +542,96 @@ describe(`Basic buy now or accept offer flows (Seaport v${VERSION})`, function (
           return receipt;
         });
       });
+      it("Creating off-chain merkle tree as an allowlist", async () => {
+          //creating allowlist using merkle tree
+          const allowlistAddresses = [`${testERC721.address}`,'0x5705E61d0d3ccf96cCb89435F45b151Da11543d2']
+          const leafNodes = allowlistAddresses.map((addr) => keccak256(addr))
+          const merkleTree = new MerkleTree(leafNodes, keccak256, { sortPairs: true });
+          const rootHash = merkleTree.getRoot()
+
+          //MINT & APPROVE FOR PARTICIPANTS
+          const nftItem1ForAllowedAddress = await mintAndApprove721(
+            seller,
+            marketplaceContract.address
+           );
+          const nftItem2ForAllowedAddress = await mintAndApprove721(
+            buyer,
+            marketplaceContract.address
+          );
+          const nftItem1ForUnallowedAddress = await mintAndApprove721WithIncorrectNftAddress(
+            seller,
+            marketplaceContract.address
+          );
+          const nftItem2ForUnallowedAddress = await mintAndApprove721WithIncorrectNftAddress(
+            buyer,
+            marketplaceContract.address
+          );
+
+          const nftItem1 = getTestItem721(nftItem1ForAllowedAddress, 1, 1, seller.address)
+          const nftItem2 = getTestItem721(nftItem2ForAllowedAddress, 1, 1, buyer.address)
+          const nftItem3 = getTestItem721withUnallowedAddress(nftItem1ForUnallowedAddress, 1, 1, seller.address)
+          const nftItem4 = getTestItem721withUnallowedAddress(nftItem2ForUnallowedAddress, 1, 1, buyer.address)
+          
+          const offer:any = [];
+          const consideration:any = []
+
+          function makeOffer(offerItems: any){
+            offerItems.map((item:any) => {
+              const tokenAddress = keccak256(item.token)
+              const hexProof = merkleTree.getHexProof(tokenAddress);
+              const verifyProof = merkleTree.verify(hexProof, tokenAddress, rootHash)
+  
+              if(verifyProof) {
+                offer.push(item)
+              } 
+              else {
+                console.log('unAllowed token')
+              }
+            })
+          }
+          //fullfilling it with 1 allowed and 1 unAllowed token
+          makeOffer([nftItem1,nftItem3])
+          //only allowed tokens can be added into array
+          
+          function makeConsideration(offerItems: any){
+            offerItems.map((item:any) => {
+              const tokenAddress = keccak256(item.token)
+              const hexProof = merkleTree.getHexProof(tokenAddress);
+              const verifyProof = merkleTree.verify(hexProof, tokenAddress, rootHash)
+  
+              if(verifyProof) {
+                consideration.push(item)
+              } 
+              else {
+                console.log('unAllowed token')
+              }
+            })
+          }
+          makeConsideration([nftItem2,nftItem4])
+          
+          expect(consideration).to.be.eql([nftItem2])
+
+
+          const { order, value ,orderHash } = await createOrder(
+            seller,
+            zone,
+            offer,
+            consideration,
+            0
+          );
+
+          //adding a tip the seller
+          order.parameters.consideration.push(getItemETH(parseEther("1"), parseEther("1"), seller.address))
+    
+          const tx = marketplaceContract
+              .connect(buyer)
+              .fulfillOrder(order, toKey(0),{
+                value:value.add(parseEther("1"))
+              });
+          
+          await (await tx).wait();
+    
+      
+        });
   })
 })
